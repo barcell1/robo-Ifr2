@@ -1,0 +1,125 @@
+#include <Trade\Trade.mqh>
+CTrade trade;
+MqlRates rates[];
+input int RsiPeriod=2;
+input int RsiValue=25;
+input int LOTE=300;
+input int countlimit=6;
+double IFR2Buff[];
+int IFR2_Handle;
+int diacompra;
+double high1;
+double high2;
+int count;
+double ask;
+double bid;
+datetime start;
+datetime end;
+datetime hrastreio;
+int OnInit()
+  {
+
+IFR2_Handle=iRSI(_Symbol,PERIOD_CURRENT,RsiPeriod,PRICE_CLOSE);
+ArraySetAsSeries(IFR2Buff,true);
+ArraySetAsSeries(rates,true);
+   return(INIT_SUCCEEDED);
+  }
+void OnTick()
+  {
+CopyBuffer(IFR2_Handle,0,0,7,IFR2Buff);
+CopyRates(_Symbol,PERIOD_CURRENT,0,7,rates); 
+if (isNewBar()==true)
+ {
+ count++;
+ // Print("nova_barra");
+  start=TimeLocal(); 
+ }   
+MqlDateTime HorarioInicial;
+TimeToStruct(start,HorarioInicial);
+MqlDateTime HorarioAgora;
+end=TimeLocal();
+TimeToStruct(end,HorarioAgora);
+MqlDateTime HorarioRastreio;
+hrastreio=TimeLocal();
+TimeToStruct(hrastreio,HorarioRastreio);
+high1=rates[1].high;
+high2=rates[2].high;
+
+if(PositionsTotal()<=0 ){
+if( 
+                    (HorarioAgora.hour- HorarioInicial.hour ==6) &&
+                    (HorarioAgora.min>=50)                       &&
+                  //(HorarioAgora.sec==1)                        &&
+                    (IFR2Buff[0]<=25)
+
+     )
+
+{
+ trade.Buy(LOTE/*CalcLots(distance * tickSize)*/,NULL,0.0,0.0/*rates[1].low*/,0.0/*tp*/);
+ count=0;
+ diacompra= HorarioAgora.day;
+Print("dia compra ", diacompra);
+// Sleep(50000000);
+}
+}     
+
+int diarastreio=HorarioRastreio.day;
+Print("diarastreio", diarastreio);
+
+if (diarastreio!= diacompra){
+if(PositionsTotal()<=1 ){
+Rastreia(high1,high2);
+}
+}   
+}
+
+bool isNewBar()
+   {
+   
+    static datetime prevTime = 0;
+    
+    datetime lastTime[1];
+   
+    if(CopyTime(Symbol(), Period(), 0, 1, lastTime) == 1 && prevTime != lastTime[0])
+       {
+       
+       
+        prevTime = lastTime[0];
+        return(true);
+       }
+    return(false);
+  }
+    
+void Rastreia(double high1, double high2)
+   {
+    
+   for (int i=PositionsTotal()-1;i>=0;i--) 
+   {
+     string symbol=PositionGetSymbol(i);
+     if (symbol==Symbol())
+   {
+      ulong ticket= PositionGetInteger(POSITION_TICKET);
+   
+      if (PositionGetInteger(POSITION_TYPE)== POSITION_TYPE_BUY)
+   {
+      
+    double max=MathMax(high1,high2);
+    ObjectCreate(_Symbol,"MAX",OBJ_HLINE,0,0,max);
+    ObjectSetInteger(0,"MAX",OBJPROP_COLOR,clrOrange);
+    ObjectSetInteger(0,"MAX",OBJPROP_WIDTH,2);
+    ObjectMove  (_Symbol,"MAX",0,0,max);  
+      if (
+      
+           ( rates[0].high>=max || count== countlimit)
+                  
+         )
+      
+   {
+      count=0;
+      trade.PositionClose(ticket,0);
+      
+   }
+   }  
+   }       
+   }
+   }
